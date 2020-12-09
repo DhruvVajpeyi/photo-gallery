@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link href="./assets/css/gallery.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <!-- api gateway generated sdk -->
+        <script src="./assets/js/sdk/lib/axios/dist/axios.standalone.js"></script>
+        <script src="./assets/js/sdk/lib/CryptoJS/rollups/hmac-sha256.js"></script>
+        <script src="./assets/js/sdk/lib/CryptoJS/rollups/sha256.js"></script>
+        <script src="./assets/js/sdk/lib/CryptoJS/components/hmac.js"></script>
+        <script src="./assets/js/sdk/lib/CryptoJS/components/enc-base64.js"></script>
+        <script src="./assets/js/sdk/lib/url-template/url-template.js"></script>
+        <script src="./assets/js/sdk/lib/apiGatewayCore/sigV4Client.js"></script>
+        <script src="./assets/js/sdk/lib/apiGatewayCore/apiGatewayClient.js"></script>
+        <script src="./assets/js/sdk/lib/apiGatewayCore/simpleHttpClient.js"></script>
+        <script src="./assets/js/sdk/lib/apiGatewayCore/utils.js"></script>
+
+        <script src="./assets/js/sdk/apigClient.js"></script>
+
+        <script src="./assets/js/aws-sdk.min.js"></script>
+    </head>
+
+    <body style="background-color:#f8f8ff;">
+        <div class="search-bar">
+            <div class="search-container">
+                <input type="text" placeholder="Search Photos.." id="search-input">
+                <button type="submit" id="submit-query"><i class="fa fa-search"></i></button>
+            </div>
+            <div class="upload-container">
+                <input type="file" id="upload-img" accept="image/png, image/jpeg, image/jpg">
+                <button type="submit" id="submit-upload"><i class="fa fa-upload"></i></button>
+            </div>
+        </div>
+        <div class="gallery"></div>
+        </div>
+        <script>var sdk = apigClientFactory.newClient({apiKey: '4nLMG3Rghf5D0f6HloQ13sKMSPgx3p76Um6ziij8'});</script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+        <script src="./assets/js/gallery.js"></script>
+    </body>
+</html>
