@@ -33,8 +33,7 @@ def lambda_handler(event, context):
                     'Bucket': bucket,
                     'Name': name
                 }
-            },
-        )
+            })
             
         es_object = {
             'objectKey': name,

@@ -1,0 +1,448 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Serverless Frontend CI/CD
+Parameters:
+  GitHubRepo:
+    Type: String
+
+  GitHubBranch:
+    Type: String
+
+  GitHubToken:
+    Type: String
+
+  GitHubUser:
+    Type: String
+
+Resources:
+  ESPhotos:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      DomainName: "photos"
+      ElasticsearchClusterConfig:
+        InstanceCount: "1"
+        InstanceType: "t2.small.elasticsearch"
+      AccessPolicies: 
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              AWS:
+                - !GetAtt IndexLambdaRole.Arn
+            Action: "es:*"
+            Resource: !Sub "arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/photos/*"
+
+  IndexLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "index-photos"
+      Description: "Index new photos in the photos buckets with rekognition labels"
+      Handler: "lambda_function.lambda_handler"
+      Role: !GetAtt IndexLambdaRole.Arn
+      Runtime: "python3.8"
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref LambdaSrcBucket
+        S3Key: "index-photos/deployment.zip"
+  
+  SearchLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: "search-photos"
+      Description: "Parse a user query using Lex and send back photo urls"
+      Handler: "lambda_function.lambda_handler"
+      Role: !GetAtt SearchLambdaRole.Arn
+      Runtime: "python3.8"
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref LambdaSrcBucket
+        S3Key: "search-photos/deployment.zip"
+
+  PhotoBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:Put"
+            Function: !GetAtt IndexLambdaFunction.Arn
+
+  GalleryRestAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      ApiKeySourceType: "HEADER"
+      BinaryMediaTypes:
+        - "image/jpg"
+        - "image/jpeg"
+        - "image/png"
+      Body:
+        openapi: "3.0.1"
+        info:
+          title: "AI Photo Search"
+          description: "AI Photo Search application, built during the Cloud and Big Data course\
+          \ at Columbia University."
+          version: "1.0.0"
+        paths:
+          /search:
+            get:
+              operationId: "searchPhotos"
+              parameters:
+                - name: "q"
+                  in: "query"
+                  schema:
+                    type: "string"
+                  description: "the string to be searched"
+              responses:
+                500:
+                  description: "500 response"
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Error"
+                200:
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/SearchResponse"
+                403:
+                  description: "403 response"
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/Error"
+              security:
+                - api_key: []
+            options:
+              responses:
+                200:
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: "string"
+                  content: {}
+          /upload/{key}:
+            put:
+              parameters:
+              - name: "Content-Type"
+                in: "header"
+                schema:
+                  type: "string"
+              - name: "key"
+                in: "path"
+                required: true
+                schema:
+                  type: "string"
+              responses:
+                200:
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                    Content-Type:
+                      schema:
+                        type: "string"
+                  content:
+                    application/json:
+                      schema:
+                        $ref: "#/components/schemas/MODEL498d78"
+              security:
+              - api_key: []
+            options:
+              responses:
+                200:
+                  description: "200 response"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: "string"
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: "string"
+                  content: {}
+        components:
+          schemas:
+            Error:
+              type: "object"
+              properties:
+                code:
+                  type: "integer"
+                  format: "int32"
+                message:
+                  type: "string"
+            Photo:
+              type: "object"
+              properties:
+                url:
+                  type: "string"
+                labels:
+                  type: "array"
+                  items:
+                    type: "string"
+            MODEL498d78:
+              type: "object"
+              properties: {}
+            SearchResponse:
+              type: "object"
+              properties:
+                results:
+                  type: "array"
+                  items:
+                    $ref: "#/components/schemas/Photo"
+          securitySchemes:
+            api_key:
+              type: "apiKey"
+              name: "x-api-key"
+              in: "header"
+
+  GalleryAPIDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestAPIId: !Ref GalleryRestAPI
+      StageName: "beta"
+    
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      PolicyDocument:
+        Id: PublicWebsitePolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref ClientBucket
+                - /*
+      Bucket: !Ref ClientBucket
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: |
+        {
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": { "Service": [ "codebuild.amazonaws.com" ]},
+                "Action": [ "sts:AssumeRole" ]
+            }]
+        }
+      Policies:
+        - PolicyName: client-code-build-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+              - Resource:
+                  - !Sub arn:aws:s3:::${AssetsBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+                  - s3:ListObjects
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: |
+        {
+            "Statement": [{
+                "Effect": "Allow",
+                "Principal": { "Service": [ "codepipeline.amazonaws.com" ]},
+                "Action": [ "sts:AssumeRole" ]
+            }]
+        }
+      Policies:
+        - PolicyName: code-pipeline-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Resource:
+                  - !Sub arn:aws:s3:::${AssetsBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}
+                Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:ListObjects
+              - Resource:
+                  - arn:aws:s3:::*
+                Effect: Allow
+                Action:
+                  - s3:ListAllMyBuckets
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                  - iam:PassRole
+              - Resource: "*"
+                Effect: Allow
+                Action:
+                  - lambda:*
+
+  ClientBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "CODEPIPELINE"
+      Source:
+        Type: "CODEPIPELINE"
+        BuildSpec: |
+          version: 0.1
+          phases:
+            install:
+              commands:
+                - echo Installing packages for client
+                - npm install
+            build:
+              commands:
+                - echo Building client
+                - npm run build
+          artifacts:
+            files:
+              - 'build/**/*'
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/nodejs:8.11.0"
+        Type: "LINUX_CONTAINER"
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+      Name: !Sub ${AWS::StackName}-build-client
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  DeployClientBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "CODEPIPELINE"
+      Source:
+        Type: "CODEPIPELINE"
+        BuildSpec: |
+          version: 0.1
+          phases:
+            build:
+              commands:
+                - echo Deploying client to S3
+                - cd ./build && aws s3 cp . s3://$S3_CLIENT_BUCKET --recursive > deploymentResult.txt
+          artifacts:
+            files: build/deploymentResult.txt
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/nodejs:6.3.1"
+        Type: "LINUX_CONTAINER"
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+          - Name: S3_CLIENT_BUCKET
+            Value: !Ref ClientBucket
+      Name: !Sub ${AWS::StackName}-deploy-client
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref AssetsBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: App
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: !Ref GitHubUser
+                Repo: !Ref GitHubRepo
+                Branch: !Ref GitHubBranch
+                OAuthToken: !Ref GitHubToken
+              OutputArtifacts:
+                - Name: App
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: ClientBuildStep
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref ClientBuildProject
+              InputArtifacts:
+                - Name: App
+              OutputArtifacts:
+                - Name: ClientBuild
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: ClientDeployStep
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref DeployClientBuildProject
+              InputArtifacts:
+                - Name: ClientBuild
+              OutputArtifacts:
+                - Name: ClientDeploymentOutput
+              RunOrder: 1
+
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt
+      - ClientBucket
+      - WebsiteURL
+    Description: URL for website hosted on S3
+  S3BucketSecureURL:
+    Value: !Join
+      - ''
+      - - 'https://'
+        - !GetAtt
+          - ClientBucket
+          - DomainName
+    Description: Name of S3 bucket to hold website content

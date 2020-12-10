@@ -3,11 +3,16 @@ import logging
 import boto3
 from elasticsearch import Elasticsearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
+from urllib.parse import unquote
+
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 def lambda_handler(event, context):
     client = boto3.client('lex-runtime')
-    query = event['queryStringParameters']['q']
+    query = unquote(event['queryStringParameters']['q'])
     
+    s3_client = boto3.client('s3')
     response = client.post_text(
         botName='PhotoAlbumSearch',
         botAlias='photo_search',
@@ -34,13 +39,28 @@ def lambda_handler(event, context):
 
     query = {
         'query': {
-            'term': {
+            'terms': {
                 'labels': labels
             }
         }
     }
-    res = es.search(index=index, body=query)
+    es_res = es.search(index=index, body=query)
+    results = {
+        'results': [{
+            'url': s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': item['_source']['bucket'],
+                                                            'Key': item['_source']['objectKey']},
+                                                    ExpiresIn=60),
+            'labels': item['_source']['labels']
+        } for item in es_res['hits']['hits']]
+    }
+    
     return {
         'statusCode': 200,
-        'body': json.dumps(res)
+        'headers': {
+            'Access-Control-Allow-Headers' : 'Content-Type',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'OPTIONS,POST,GET'
+        },
+        'body': json.dumps(results)
     }
