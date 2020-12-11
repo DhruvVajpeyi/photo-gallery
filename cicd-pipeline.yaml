@@ -351,6 +351,28 @@ Resources:
       Value: "4nLMG3Rghf5D0f6HloQ13sKMSPgx3p76Um6ziij8"
     DependsOn: GalleryApiDeployment
 
+  ApiUsagePlan:
+    Type: "AWS::ApiGateway::UsagePlan"
+    Properties:
+      ApiStages: 
+      - ApiId: !Ref GalleryRestApi
+        Stage: !Ref beta     
+      Description: !Join [" ", [{"Ref": "AWS::StackName"}, "usage plan"]]
+      Quota:
+        Limit: 2000
+        Period: MONTH
+      Throttle:
+        BurstLimit: 10
+        RateLimit: 10
+      UsagePlanName: !Join ["", [{"Ref": "AWS::StackName"}, "-usage-plan"]]
+
+  ApiUsagePlanKey:
+    Type: "AWS::ApiGateway::UsagePlanKey"
+    Properties:
+      KeyId: !Ref GalleryApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiUsagePlan
+
   ClientBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -540,7 +562,7 @@ Resources:
                 - apt-get update
                 - apt-get -y upgrade
                 - apt-get install zip unzip -y
-                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript ~/client/assets/js/sdk.zip
+                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript client/assets/js/sdk.zip
             build:
               commands:
                 - cd client/assets/js
@@ -550,7 +572,7 @@ Resources:
                 - aws s3 cp . s3://${ClientBucket} --recursive > deploymentResult.txt
           artifacts:
             files:
-              - build/deploymentResult.txt
+              - client/deploymentResult.txt
       Environment:
         ComputeType: "BUILD_GENERAL1_SMALL"
         Image: "aws/codebuild/standard:4.0"
