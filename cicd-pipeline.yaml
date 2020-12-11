@@ -143,6 +143,9 @@ Resources:
   GalleryRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
+      EndpointConfiguration:
+        Types:
+          - "REGIONAL"
       Body:
         openapi: "3.0.1"
         info:
@@ -321,7 +324,7 @@ Resources:
           securitySchemes:
             api_key:
               type: "apiKey"
-              name: "x-api-key"
+              name: "X-Api-key"
               in: "header"
         x-amazon-apigateway-binary-media-types:
         - "image/jpg"
@@ -356,7 +359,7 @@ Resources:
     Properties:
       ApiStages: 
       - ApiId: !Ref GalleryRestApi
-        Stage: !Ref beta     
+        Stage: "beta"    
       Description: !Join [" ", [{"Ref": "AWS::StackName"}, "usage plan"]]
       Quota:
         Limit: 2000
@@ -555,7 +558,7 @@ Resources:
       Source:
         Type: "CODEPIPELINE"
         BuildSpec: !Sub |
-          version: 0.1
+          version: 0.2
           phases:
             install:
               commands:
