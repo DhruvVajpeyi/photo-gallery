@@ -369,10 +369,15 @@ Resources:
                   - logs:PutLogEvents
               - Resource:
                   - !Sub arn:aws:s3:::${SrcBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}
                 Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
               - Resource: "*"
                 Effect: Allow
                 Action:
@@ -398,10 +403,16 @@ Resources:
             Statement:
               - Resource:
                   - !Sub arn:aws:s3:::${SrcBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}/*
+                  - !Sub arn:aws:s3:::${ClientBucket}
                 Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:ListObjects
               - Resource:
                   - arn:aws:s3:::*
                 Effect: Allow
@@ -473,6 +484,80 @@ Resources:
                 - Name: Lambdas
               OutputArtifacts:
                 - Name: LambdaBuild
+              RunOrder: 1
+
+  ClientBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Artifacts:
+        Type: "CODEPIPELINE"
+      Source:
+        Type: "CODEPIPELINE"
+        BuildSpec: !Sub |
+          version: 0.1
+          phases:
+            install:
+              commands:
+                - apt-get update
+                - apt-get -y upgrade
+                - apt-get install zip unzip -y
+                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript client/assets/js/sdk.zip
+            build:
+              commands:
+                - cd client/assets/js
+                - unzip sdk.zip
+                - aws s3 cp . s3://${ClientBucket} --recursive > deploymentResult.txt
+          artifacts:
+            files:
+              - build/deploymentResult.txt
+      Environment:
+        ComputeType: "BUILD_GENERAL1_SMALL"
+        Image: "aws/codebuild/standard:4.0"
+        Type: "LINUX_CONTAINER"
+        EnvironmentVariables:
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref AWS::Region
+      Name: !Sub ${AWS::StackName}-build-client
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  ClientPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref SrcBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: App
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              Configuration:
+                Owner: "DhruvVajpeyi"
+                Repo: "photo-gallery"
+                Branch: "client-main"
+                OAuthToken: !Ref GitHubToken
+              OutputArtifacts:
+                - Name: App
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: ClientBuildStep
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref ClientBuildProject
+              InputArtifacts:
+                - Name: App
+              OutputArtifacts:
+                - Name: AppBuild
               RunOrder: 1
 
 Outputs:
