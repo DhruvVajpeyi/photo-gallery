@@ -1,0 +1,27 @@
+version: 0.2
+phases:
+  install:
+    commands:
+      - apt-get update
+      - apt-get -y upgrade
+      - apt-get install python python-pip build-essential -y
+      - apt-get install zip unzip -y
+      - pip install --upgrade pip
+      - pip install --target ./package requests
+      - pip install --target ./package requests_aws4auth
+      - pip install --target ./package boto3
+      - pip install --target ./package elasticsearch
+  build:
+    commands:
+      - zip -r /tmp/index-photos.zip ./package/
+      - zip -r /tmp/search-photos.zip ./package/
+      - zip -g /tmp/index-photos.zip lambda/index-photos/lambda_function.py
+      - zip -g /tmp/search-photos.zip lambda/search-photos/lambda_function.py
+  post_build:
+    commands:
+      - cd /tmp
+      - aws lambda update-function-code --function-name index-photos --zip-file fileb://index-photos.zip
+      - aws lambda update-function-code --function-name index-photos --zip-file fileb://search-photos.zip
+artifacts:
+  files:
+    - 'build/**/*'
