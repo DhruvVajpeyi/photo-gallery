@@ -9,7 +9,6 @@ phases:
       - pip install --upgrade pip
       - pip install --target ./package requests
       - pip install --target ./package requests_aws4auth
-      - pip install --target ./package boto3
       - pip install --target ./package elasticsearch
   build:
     commands:
