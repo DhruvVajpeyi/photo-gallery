@@ -13,9 +13,10 @@ phases:
       - pip install --target ./package elasticsearch
   build:
     commands:
-      - zip -r /tmp/index-photos.zip ./package/*
-      - zip -r /tmp/search-photos.zip ./package/*
-      - cd lambda/index-photos
+      - cd package
+      - zip -r /tmp/index-photos.zip *
+      - zip -r /tmp/search-photos.zip *
+      - cd ../lambda/index-photos
       - zip -g /tmp/index-photos.zip lambda_function.py
       - cd ../search-photos
       - zip -g /tmp/search-photos.zip lambda_function.py
