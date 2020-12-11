@@ -3,7 +3,8 @@ Description: Serverless Frontend CI/CD
 Parameters:
   GitHubToken:
     Type: String
-
+  PhotoBucketName:
+    Type: String
 Resources:
   SrcBucket:
     Type: AWS::S3::Bucket
@@ -12,9 +13,14 @@ Resources:
     Type: AWS::Elasticsearch::Domain
     Properties:
       DomainName: "photos"
+      ElasticsearchVersion: "7.9"
       ElasticsearchClusterConfig:
         InstanceCount: "1"
         InstanceType: "t2.small.elasticsearch"
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 10
+        VolumeType: "gp2"
       AccessPolicies: 
         Version: "2012-10-17"
         Statement:
@@ -53,9 +59,23 @@ Resources:
       Runtime: "python3.8"
       Timeout: 10
       Code:
-        S3Bucket: !Ref SrcBucket
-        S3Key: "index-photos.zip"
-  
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+            return {
+              'statusCode': 200,
+              'body': json.dumps('Hello from Lambda!')
+            }
+
+  IndexS3Invoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt IndexLambdaFunction.Arn
+      Principal: "s3.amazonaws.com"
+      SourceArn: !Sub "arn:aws:s3:::${PhotoBucketName}"
+
   SearchLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -82,16 +102,24 @@ Resources:
       Runtime: "python3.8"
       Timeout: 10
       Code:
-        S3Bucket: !Ref SrcBucket
-        S3Key: "search-photos.zip"
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+            return {
+              'statusCode': 200,
+              'body': json.dumps('Hello from Lambda!')
+            }
 
   PhotoBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: !Ref PhotoBucketName
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: "s3:ObjectCreated:Put"
             Function: !GetAtt IndexLambdaFunction.Arn
+    DependsOn: IndexS3Invoke
 
   S3ProxyRole:
     Type: AWS::IAM::Role
@@ -132,13 +160,13 @@ Resources:
                 schema:
                   type: "string"
               responses:
-                500:
+                "500":
                   description: "500 response"
                   content:
                     application/json:
                       schema:
                         $ref: "#/components/schemas/Error"
-                200:
+                "200":
                   description: "200 response"
                   headers:
                     Access-Control-Allow-Origin:
@@ -148,7 +176,7 @@ Resources:
                     application/json:
                       schema:
                         $ref: "#/components/schemas/SearchResponse"
-                403:
+                "403":
                   description: "403 response"
                   content:
                     application/json:
@@ -167,7 +195,7 @@ Resources:
                 contentHandling: "CONVERT_TO_TEXT"
             options:
               responses:
-                200:
+                "200":
                   description: "200 response"
                   headers:
                     Access-Control-Allow-Origin:
@@ -205,7 +233,7 @@ Resources:
                 schema:
                   type: "string"
               responses:
-                200:
+                "200":
                   description: "200 response"
                   headers:
                     Access-Control-Allow-Origin:
@@ -236,7 +264,7 @@ Resources:
                 contentHandling: "CONVERT_TO_BINARY"
             options:
               responses:
-                200:
+                "200":
                   description: "200 response"
                   headers:
                     Access-Control-Allow-Origin:
@@ -321,6 +349,7 @@ Resources:
         - RestApiId: !Ref GalleryRestApi
           StageName: "beta"
       Value: "4nLMG3Rghf5D0f6HloQ13sKMSPgx3p76Um6ziij8"
+    DependsOn: GalleryApiDeployment
 
   ClientBucket:
     Type: AWS::S3::Bucket
@@ -359,7 +388,7 @@ Resources:
       Policies:
         - PolicyName: lambda-code-build-policy
           PolicyDocument:
-            Version: 2012-10-17
+            Version: "2012-10-17"
             Statement:
               - Resource: "*"
                 Effect: Allow
@@ -383,7 +412,17 @@ Resources:
                 Action:
                   - s3:ListAllMyBuckets
                   - s3:ListObjects
-
+              - Resource: 
+                  - !GetAtt IndexLambdaFunction.Arn
+                  - !GetAtt SearchLambdaFunction.Arn
+                Effect: Allow
+                Action:
+                  - lambda:UpdateFunctionCode
+              - Resource: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/${GalleryRestApi}/stages/beta/sdks/javascript
+                Effect: Allow
+                Action:
+                  - apigateway:GET
+                  
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -443,7 +482,7 @@ Resources:
         EnvironmentVariables:
           - Name: AWS_DEFAULT_REGION
             Value: !Ref AWS::Region
-      Name: !Sub ${AWS::StackName}-build-client
+      Name: !Sub ${AWS::StackName}-build-lambda
       ServiceRole: !Ref CodeBuildServiceRole
 
   LambdaPipeline:
@@ -501,11 +540,13 @@ Resources:
                 - apt-get update
                 - apt-get -y upgrade
                 - apt-get install zip unzip -y
-                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript client/assets/js/sdk.zip
+                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript ~/client/assets/js/sdk.zip
             build:
               commands:
                 - cd client/assets/js
+                - ls
                 - unzip sdk.zip
+                - cd ../..
                 - aws s3 cp . s3://${ClientBucket} --recursive > deploymentResult.txt
           artifacts:
             files:
