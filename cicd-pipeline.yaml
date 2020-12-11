@@ -368,6 +368,7 @@ Resources:
         BurstLimit: 10
         RateLimit: 10
       UsagePlanName: !Join ["", [{"Ref": "AWS::StackName"}, "-usage-plan"]]
+    DependsOn: GalleryApiDeployment
 
   ApiUsagePlanKey:
     Type: "AWS::ApiGateway::UsagePlanKey"
@@ -571,6 +572,7 @@ Resources:
                 - cd client/assets/js
                 - ls
                 - unzip sdk.zip
+                - rm sdk.zip
                 - cd ../..
                 - aws s3 cp . s3://${ClientBucket} --recursive > deploymentResult.txt
           artifacts:
