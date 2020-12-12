@@ -15,8 +15,7 @@ body {
 }
 
 .gallery img {
-    max-width:100%;
-    max-height:100%;
+    width:12.5%;
 }
 
 .search-bar {
@@ -46,7 +45,6 @@ body {
 .search-bar button {
     padding: 6px 10px;
     margin-top: 8px;
-    margin-right: 16px;
     background: #ddd;
     font-size: 17px;
     border: none;

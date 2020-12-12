@@ -49,6 +49,8 @@ $('#stop-record').click(function() {
 });
 
 function getPhotos() {
+    $('#search-icon').removeClass("fa-search");
+    $('#search-icon').addClass("fa-spinner");
     var query = $('#search-input').val();
     if ($.trim(query) == '') {
         return false;
@@ -61,15 +63,25 @@ function getPhotos() {
             if (data.results) {
                 var photos = data.results;
                 $('.gallery').empty();
+                var i = 0;
                 for (let photo of photos) {
+                    row = Math.floor(i/4);
+                    if(i%4 == 0) {
+                        $('.gallery').append("<div id='row"+row+"'></div>")
+                    }
                     var $newphoto = $("<img src='"+photo.url+"'>");
-                    $('.gallery').append($newphoto);
+                    $('#row'+row).append($newphoto);
+                    i+=1;
                 }
             }
+            $('#search-icon').removeClass("fa-spinner");
+            $('#search-icon').addClass("fa-search");
         });
 }
 
 function uploadPhoto() {
+    $('#upload-icon').removeClass("fa-upload");
+    $('#upload-icon').addClass("fa-spinner");
     const reader = new FileReader();  
     var filename = $('#upload-img').val().split('\\').pop();
     var imgFiles = $('#upload-img').prop('files');
@@ -77,7 +89,11 @@ function uploadPhoto() {
         let imgFile=imgFiles[0];
         reader.onload = function(e) {
             let img_bin = e.target.result.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
-            sdk.uploadKeyPut({'key': filename, 'Content-Type': 'application/json'}, img_bin, {});
+            sdk.uploadKeyPut({'key': filename, 'Content-Type': 'application/json'}, img_bin, {})
+                .then((response)=>{
+                    $('#upload-icon').removeClass("fa-spinner");
+                    $('#upload-icon').addClass("fa-upload");
+                });
             $('#upload-img').val('');
         };
         reader.readAsDataURL(imgFile);
