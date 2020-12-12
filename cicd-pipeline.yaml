@@ -399,6 +399,52 @@ Resources:
             Resource: !Sub "${ClientBucket.Arn}/*"
       Bucket: !Ref ClientBucket
 
+  ClientCloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Origins:
+          - DomainName: !Sub "${ClientBucket}.s3-website-${AWS::Region}.amazonaws.com"
+            Id: !Sub "S3-Website-${ClientBucket}.s3-website-${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              HTTPPort: '80'
+              HTTPSPort: '443'
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          TargetOriginId: !Sub "S3-Website-${ClientBucket}.s3-website-${AWS::Region}.amazonaws.com"
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: 'true'
+
+  TranscribeUser:
+    Type: AWS::IAM::User
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "transcribestreaming"
+                Effect: "Allow"
+                Action: "transcribe:StartStreamTranscriptionWebSocket"
+                Resource: "*"
+          PolicyName: "Websocket_transcribe"
+  
+  TranscriberKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      Status: "Active"
+      UserName: !Ref TranscribeUser
+
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -558,33 +604,22 @@ Resources:
         Type: "CODEPIPELINE"
       Source:
         Type: "CODEPIPELINE"
-        BuildSpec: !Sub |
-          version: 0.2
-          phases:
-            install:
-              commands:
-                - apt-get update
-                - apt-get -y upgrade
-                - apt-get install zip unzip -y
-                - aws apigateway get-sdk --rest-api-id ${GalleryRestApi} --stage-name beta --sdk-type javascript client/assets/js/sdk.zip
-            build:
-              commands:
-                - cd client/assets/js
-                - ls
-                - unzip sdk.zip
-                - rm sdk.zip
-                - cd ../..
-                - aws s3 cp . s3://${ClientBucket} --recursive > deploymentResult.txt
-          artifacts:
-            files:
-              - client/deploymentResult.txt
+        BuildSpec: "buildspec-node.yml"
       Environment:
         ComputeType: "BUILD_GENERAL1_SMALL"
-        Image: "aws/codebuild/standard:4.0"
+        Image: "aws/codebuild/nodejs:8.11.0"
         Type: "LINUX_CONTAINER"
         EnvironmentVariables:
           - Name: AWS_DEFAULT_REGION
             Value: !Ref AWS::Region
+          - Name: REST_API
+            Value: !Ref GalleryRestApi
+          - Name: CLIENT
+            Value: !Ref ClientBucket
+          - Name: TRANSCRIBER_KEY
+            Value: !Ref TranscriberKey
+          - Name: TRANSCRIBER_SECRET
+            Value: !GetAtt TranscriberKey.SecretAccessKey
       Name: !Sub ${AWS::StackName}-build-client
       ServiceRole: !Ref CodeBuildServiceRole
 
@@ -630,9 +665,7 @@ Resources:
 
 Outputs:
   WebsiteURL:
-    Value: !GetAtt
-      - ClientBucket
-      - WebsiteURL
+    Value: !Sub "https://${ClientCloudFront.DomainName}"
     Description: URL for website hosted on S3
   S3BucketSecureURL:
     Value: !Join
