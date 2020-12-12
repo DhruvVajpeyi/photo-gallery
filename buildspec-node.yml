@@ -15,9 +15,9 @@ phases:
       - rm sdk.zip
       - npm run-script build
       - aws s3 cp index.html s3://${CLIENT} > deploymentResult.txt
-      - aws s3 cp ./dist s3://${CLIENT} --recursive > deploymentResult.txt
-      - aws s3 cp apiGateway-js-sdk s3://${CLIENT}/assets/js --recursive > deploymentResult.txt
-      - aws s3 cp ./assets/css s3://${CLIENT}/assets/ --recursive > deploymentResult.txt
+      - aws s3 cp ./dist s3://${CLIENT}/dist --recursive > deploymentResult.txt
+      - aws s3 cp apiGateway-js-sdk s3://${CLIENT}/assets/js/apiGateway-js-sdk --recursive > deploymentResult.txt
+      - aws s3 cp ./assets/css s3://${CLIENT}/assets/css --recursive > deploymentResult.txt
 artifacts:
   files:
     - client/deploymentResult.txt
