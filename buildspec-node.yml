@@ -6,7 +6,7 @@ phases:
       - apt-get -y upgrade
       - apt-get install zip unzip -y
       - cd client
-      - !Sub "aws apigateway get-sdk --rest-api-id ${REST_API} --stage-name beta --sdk-type sdk.zip"
+      - aws apigateway get-sdk --rest-api-id ${REST_API} --stage-name beta --sdk-type javascript sdk.zip
       - npm install
       - echo '{"region":"${AWS_DEFAULT_REGION}","access_key":"${TRANSCRIBER_KEY}","secret":"${TRANSCRIBER_SECRET}"}' > assets/js/credentials.json
   build:
