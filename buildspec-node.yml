@@ -8,7 +8,7 @@ phases:
       - cd client
       - aws apigateway get-sdk --rest-api-id ${REST_API} --stage-name beta --sdk-type javascript sdk.zip
       - npm install
-      - echo '{"region":"${AWS_DEFAULT_REGION}","access_key":"${TRANSCRIBER_KEY}","secret":"${TRANSCRIBER_SECRET}"}' > assets/js/credentials.json
+      - echo "{\"region\":\"${AWS_DEFAULT_REGION}\",\"access_key\":\"${TRANSCRIBER_KEY}\",\"secret\":\"${TRANSCRIBER_SECRET}\"}" > assets/js/credentials.json
   build:
     commands:
       - unzip sdk.zip
