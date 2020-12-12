@@ -11,7 +11,6 @@ phases:
       - echo '{"region":"${AWS_DEFAULT_REGION}","access_key":"${TRANSCRIBER_KEY}","secret":"${TRANSCRIBER_SECRET}"}' > assets/js/credentials.json
   build:
     commands:
-      - cd client
       - unzip sdk.zip
       - rm sdk.zip
       - npm run-script build
