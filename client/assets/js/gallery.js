@@ -65,9 +65,9 @@ function getPhotos() {
                 $('.gallery').empty();
                 var i = 0;
                 for (let photo of photos) {
-                    row = Math.floor(i/4);
+                    let row = Math.floor(i/4);
                     if(i%4 == 0) {
-                        $('.gallery').append("<div id='row"+row+"'></div>")
+                        $('.gallery').append("<div class='row' id='row"+row+"'></div>")
                     }
                     var $newphoto = $("<img src='"+photo.url+"'>");
                     $('#row'+row).append($newphoto);
