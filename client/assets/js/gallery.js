@@ -13,11 +13,6 @@ $('#submit-query').click(function() {
     getPhotos();
 });
 
-$('#submit-upload').click(function() {
-    $('#error').hide();
-    uploadPhoto();
-});
-
 $('#record').click(function() {
     $('#record').hide()
     $('#error').hide();
@@ -77,27 +72,6 @@ function getPhotos() {
             $('#search-icon').removeClass("fa-spinner");
             $('#search-icon').addClass("fa-search");
         });
-}
-
-function uploadPhoto() {
-    $('#upload-icon').removeClass("fa-upload");
-    $('#upload-icon').addClass("fa-spinner");
-    const reader = new FileReader();  
-    var filename = $('#upload-img').val().split('\\').pop();
-    var imgFiles = $('#upload-img').prop('files');
-    if(imgFiles.length > 0) {
-        let imgFile=imgFiles[0];
-        reader.onload = function(e) {
-            let img_bin = e.target.result.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
-            sdk.uploadKeyPut({'key': filename, 'Content-Type': 'application/json'}, img_bin, {})
-                .then((response)=>{
-                    $('#upload-icon').removeClass("fa-spinner");
-                    $('#upload-icon').addClass("fa-upload");
-                });
-            $('#upload-img').val('');
-        };
-        reader.readAsDataURL(imgFile);
-    }
 }
 
 function stream_audio(stream) {
