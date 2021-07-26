@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Serverless Frontend CI/CD
 Parameters:
+  GitHubUser:
+    Type: String
   GitHubToken:
     Type: String
   PhotoBucketName:
@@ -121,25 +123,6 @@ Resources:
             Function: !GetAtt IndexLambdaFunction.Arn
     DependsOn: IndexS3Invoke
 
-  S3ProxyRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service: "apigateway.amazonaws.com"
-            Action: "sts:AssumeRole"
-      Policies:
-        - PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action: "s3:PutObject"
-                Resource: !Sub "${PhotoBucket.Arn}/*"
-          PolicyName: !Sub "${PhotoBucket}-Put"
-
   GalleryRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -222,76 +205,7 @@ Resources:
                       method.response.header.Access-Control-Allow-Origin: "'*'"
                 requestTemplates:
                   application/json: "{\"statusCode\": 200}"
-                passthroughBehavior: "when_no_match"
-          /upload/{key}:
-            put:
-              parameters:
-              - name: "Content-Type"
-                in: "header"
-                schema:
-                  type: "string"
-              - name: "key"
-                in: "path"
-                required: true
-                schema:
-                  type: "string"
-              responses:
-                "200":
-                  description: "200 response"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      schema:
-                        type: "string"
-                    Content-Type:
-                      schema:
-                        type: "string"
-                  content:
-                    application/json:
-                      schema:
-                        $ref: "#/components/schemas/MODEL498d78"
-              security:
-              - api_key: []
-              x-amazon-apigateway-integration:
-                type: "aws"
-                credentials: !GetAtt S3ProxyRole.Arn
-                uri: !Sub "arn:aws:apigateway:${AWS::Region}:s3:path/${PhotoBucket}/{object}"
-                responses:
-                  default:
-                    statusCode: "200"
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Origin: "'*'"
-                requestParameters:
-                  integration.request.path.object: "method.request.path.key"
-                passthroughBehavior: "when_no_match"
-                httpMethod: "PUT"
-                contentHandling: "CONVERT_TO_BINARY"
-            options:
-              responses:
-                "200":
-                  description: "200 response"
-                  headers:
-                    Access-Control-Allow-Origin:
-                      schema:
-                        type: "string"
-                    Access-Control-Allow-Methods:
-                      schema:
-                        type: "string"
-                    Access-Control-Allow-Headers:
-                      schema:
-                        type: "string"
-                  content: {}
-              x-amazon-apigateway-integration:
-                type: "mock"
-                responses:
-                  default:
-                    statusCode: "200"
-                    responseParameters:
-                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,PUT'"
-                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
-                      method.response.header.Access-Control-Allow-Origin: "'*'"
-                requestTemplates:
-                  application/json: "{\"statusCode\": 200}"
-                passthroughBehavior: "when_no_match"
+                passthroughBehavior: "when_no_match"        
         components:
           schemas:
             Error:
@@ -574,7 +488,7 @@ Resources:
                 Version: 1
                 Provider: GitHub
               Configuration:
-                Owner: "DhruvVajpeyi"
+                Owner: !Ref GitHubUser
                 Repo: "photo-gallery"
                 Branch: "lambda-main"
                 OAuthToken: !Ref GitHubToken
@@ -640,7 +554,7 @@ Resources:
                 Version: 1
                 Provider: GitHub
               Configuration:
-                Owner: "DhruvVajpeyi"
+                Owner: !Ref GitHubUser
                 Repo: "photo-gallery"
                 Branch: "client-main"
                 OAuthToken: !Ref GitHubToken
