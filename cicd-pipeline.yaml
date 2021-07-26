@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Serverless Frontend CI/CD
 Parameters:
+  GitHubUser:
+    Type: String
   GitHubToken:
     Type: String
   PhotoBucketName:
@@ -574,7 +576,7 @@ Resources:
                 Version: 1
                 Provider: GitHub
               Configuration:
-                Owner: "DhruvVajpeyi"
+                Owner: !Ref GitHubUser
                 Repo: "photo-gallery"
                 Branch: "lambda-main"
                 OAuthToken: !Ref GitHubToken
@@ -640,7 +642,7 @@ Resources:
                 Version: 1
                 Provider: GitHub
               Configuration:
-                Owner: "DhruvVajpeyi"
+                Owner: !Ref GitHubUser
                 Repo: "photo-gallery"
                 Branch: "client-main"
                 OAuthToken: !Ref GitHubToken
